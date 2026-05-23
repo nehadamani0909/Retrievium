@@ -269,9 +269,4 @@ http://127.0.0.1:3000
 - Kubernetes Deployment
 
 ---
-
-## Author
-
-**Neha Damani**
-
 Production-grade Retrieval-Augmented Generation (RAG) platform featuring OpenAI embedding generation, pgvector similarity search, hybrid semantic-lexical retrieval, JWT authentication, ownership-aware access control, document chunking pipelines, retrieval reranking, FastAPI backend services, Next.js frontend architecture, and PostgreSQL-backed vector retrieval infrastructure.
