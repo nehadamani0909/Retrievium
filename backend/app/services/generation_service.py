@@ -1,28 +1,52 @@
 import time
-import ollama
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from groq import Groq
 
 from app.metrics import metrics
 
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+load_dotenv(
+    dotenv_path=ENV_PATH,
+    override=True
+)
+
+GROQ_MODEL = os.getenv(
+    "GROQ_MODEL",
+    "llama-3.3-70b-versatile"
+)
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
 SYSTEM_PROMPT = """
 You are an enterprise knowledge assistant.
 
-STRICT RULES:
+Rules:
 
 1. Answer ONLY using the provided context.
 
-2. Do NOT use prior knowledge.
+2. Do NOT use prior knowledge or external information.
 
-3. Do NOT infer or assume anything.
+3. You may summarize, combine, rephrase, and synthesize information from multiple retrieved passages when all supporting information is present in the context.
 
-4. If the answer is not explicitly present in the context,
-respond exactly with:
+4. Do NOT introduce facts, assumptions, conclusions, or details that are not supported by the context.
+
+5. If the answer cannot be determined from the provided context, respond exactly:
 
 "I do not know based on the provided context."
 
-5. Always cite sources using:
+6. Be concise, accurate, and grounded in the retrieved content.
+
+7. Always cite sources using:
 (Filename, Page Number)
 
-6. Never mention information not present in the context.
+8. If multiple sources support the answer, cite all relevant sources.
+
+9. Never claim certainty about information that is not explicitly supported by the context.
 """
 
 
@@ -101,15 +125,17 @@ Content:
     )
 
     # =========================
-    # OLLAMA STREAMING
+    # GROQ STREAMING
     # =========================
 
-    print("Starting Ollama", flush=True)
-    ollama_start = time.time()
+    print(
+        f"Starting Groq model {GROQ_MODEL}",
+        flush=True
+    )
+    groq_start = time.time()
 
-    response = ollama.chat(
-        model="llama3",
-        stream=True,
+    response = client.chat.completions.create(
+        model=GROQ_MODEL,
         messages=[
             {
                 "role": "system",
@@ -123,9 +149,10 @@ Question:
 
 Context:
 {context}
-"""
+                """
             }
-        ]
+        ],
+        stream=True
     )
 
     # =========================
@@ -140,22 +167,25 @@ Context:
         if not first_token_seen:
 
             print(
-                f"Ollama first token in "
-                f"{time.time() - ollama_start:.3f}s",
+                f"Groq first token in "
+                f"{time.time() - groq_start:.3f}s",
                 flush=True
             )
 
             first_token_seen = True
 
-        token = chunk["message"]["content"]
+        token = chunk.choices[0].delta.content
+
+        if token is None:
+            continue
 
         full_answer += token
 
         yield token
 
     print(
-        f"Ollama stream finished in "
-        f"{time.time() - ollama_start:.3f}s",
+        f"Groq stream finished in "
+        f"{time.time() - groq_start:.3f}s",
         flush=True
     )
 

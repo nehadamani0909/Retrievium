@@ -18,6 +18,7 @@ import os
 import uuid
 import time
 from pathlib import Path
+from typing import Optional
 
 from app.ingestion.pdf_processor import (
     extract_text_from_pdf,
@@ -30,6 +31,11 @@ from app.services.store_chunks import (
 
 from app.retrieval.hybrid_search import (
     hybrid_search
+)
+
+from app.retrieval.document_fetch import (
+    fetch_document_chunks,
+    is_summary_query
 )
 
 from app.services.generation_service import (
@@ -50,8 +56,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = "uploads"
 BASE_DIR = Path(__file__).resolve().parent.parent
+UPLOAD_DIR = BASE_DIR / "uploads"
 EVALUATION_RESULTS_PATH = BASE_DIR / "evaluation" / "results.json"
 
 os.makedirs(
@@ -62,6 +68,7 @@ os.makedirs(
 
 class QueryRequest(BaseModel):
     query: str
+    document_id: Optional[str] = None
 
 
 def load_evaluation_metrics():
@@ -309,43 +316,106 @@ async def upload_file(
     current_user=Depends(get_current_user)
 ):
 
-    file_path = os.path.join(
-        UPLOAD_DIR,
-        file.filename
+    original_filename = Path(
+        file.filename or ""
+    ).name
+
+    if (
+        not original_filename
+        or Path(original_filename).suffix.lower() != ".pdf"
+    ):
+
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF uploads are supported"
+        )
+
+    file_path = UPLOAD_DIR / (
+        f"{uuid.uuid4()}-{original_filename}"
     )
 
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
+    try:
 
-        content = await file.read()
+        with open(
+            file_path,
+            "wb"
+        ) as buffer:
 
-        buffer.write(content)
+            content = await file.read()
 
-    pages = extract_text_from_pdf(
-        file_path
-    )
+            if not content:
 
-    chunks = chunk_text(
-        pages
-    )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Uploaded PDF is empty"
+                )
 
-    document_id = str(
-        uuid.uuid4()
-    )
+            buffer.write(content)
 
-    store_chunks(
-        chunks=chunks,
-        document_id=document_id,
-        filename=file.filename,
-        owner_id=current_user["id"]
-    )
+        pages = extract_text_from_pdf(
+            str(file_path)
+        )
+
+        chunks = chunk_text(
+            pages
+        )
+
+        if not chunks:
+
+            raise HTTPException(
+                status_code=422,
+                detail="No extractable text was found in this PDF"
+            )
+
+        document_id = str(
+            uuid.uuid4()
+        )
+
+        store_chunks(
+            chunks=chunks,
+            document_id=document_id,
+            filename=original_filename,
+            owner_id=current_user["id"]
+        )
+
+    except HTTPException:
+
+        conn.rollback()
+
+        raise
+
+    except psycopg2.Error as exc:
+
+        conn.rollback()
+
+        print(
+            f"Upload database error: {exc}",
+            flush=True
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Document indexing failed while saving chunks"
+        ) from exc
+
+    except Exception as exc:
+
+        conn.rollback()
+
+        print(
+            f"Upload processing error: {exc}",
+            flush=True
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="Document upload failed during processing"
+        ) from exc
 
     return {
 
         "filename":
-            file.filename,
+            original_filename,
 
         "pages_extracted":
             len(pages),
@@ -368,10 +438,27 @@ async def query_docs(
 
     retrieval_start = time.time()
 
-    results = hybrid_search(
-        request.query,
-        owner_id=current_user["id"]
-    )
+    if (
+        request.document_id
+        and is_summary_query(request.query)
+    ):
+
+        print(
+            "Summary query detected; fetching full document",
+            flush=True
+        )
+
+        results = fetch_document_chunks(
+            document_id=request.document_id,
+            owner_id=current_user["id"]
+        )
+
+    else:
+
+        results = hybrid_search(
+            request.query,
+            owner_id=current_user["id"]
+        )
 
     retrieval_end = time.time()
 

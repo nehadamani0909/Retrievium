@@ -10,6 +10,29 @@ interface Toast {
   message: string;
 }
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
+async function getErrorMessage(
+  response: Response,
+  fallback: string
+) {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    const data = await response.json();
+    const detail = data?.detail;
+
+    if (typeof detail === "string") {
+      return detail;
+    }
+  }
+
+  const text = await response.text();
+
+  return text || fallback;
+}
+
 export default function HomePage() {
   const [query, setQuery] = useState("");
   const [answer, setAnswer] = useState("");
@@ -91,7 +114,12 @@ export default function HomePage() {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      const response = await fetch("http://127.0.0.1:8000/upload", {
+      if (!token) {
+        router.push("/login");
+        throw new Error("Please log in before uploading a document.");
+      }
+
+      const response = await fetch(`${API_URL}/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -99,12 +127,26 @@ export default function HomePage() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Upload response not OK");
+      if (!response.ok) {
+        const errorText = await getErrorMessage(
+          response,
+          "Document indexing failed. Verify backend server."
+        );
+
+        throw new Error(
+          `Upload failed (${response.status}): ${errorText}`
+        );
+      }
 
       showToast("Document uploaded and indexed successfully", "success");
     } catch (error) {
       console.error(error);
-      showToast("Document indexing failed. Verify backend server.", "error");
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Document indexing failed. Verify backend server.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
@@ -121,7 +163,12 @@ export default function HomePage() {
       setLoading(true);
       const token = localStorage.getItem("token");
 
-      const response = await fetch("http://127.0.0.1:8000/query", {
+      if (!token) {
+        router.push("/login");
+        throw new Error("Please log in before querying documents.");
+      }
+
+      const response = await fetch(`${API_URL}/query`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -132,7 +179,16 @@ export default function HomePage() {
         }),
       });
 
-      if (!response.ok) throw new Error("Query response error");
+      if (!response.ok) {
+        const errorText = await getErrorMessage(
+          response,
+          "Retrieval query failed. Verify backend status."
+        );
+
+        throw new Error(
+          `Query failed (${response.status}): ${errorText}`
+        );
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -146,7 +202,12 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error(error);
-      showToast("Retrieval query failed. Verify backend status.", "error");
+      showToast(
+        error instanceof Error
+          ? error.message
+          : "Retrieval query failed. Verify backend status.",
+        "error"
+      );
     } finally {
       setLoading(false);
     }
