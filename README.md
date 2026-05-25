@@ -4,7 +4,7 @@
 
 Retrievium is a production-grade Retrieval-Augmented Generation (RAG) platform engineered for secure document ingestion, semantic retrieval, and AI-powered question answering.
 
-The platform enables users to upload PDF documents, automatically extract and chunk content, generate vector embeddings using OpenAI embedding models, and perform hybrid retrieval combining semantic similarity search with lexical relevance scoring. Retrieved context is then supplied to a Large Language Model to generate grounded, context-aware responses.
+The platform enables users to upload PDF documents, automatically extract and chunk content, generate vector embeddings using Sentence Transformers, and perform hybrid retrieval combining semantic similarity search with lexical relevance scoring. Retrieved context is then supplied to a Groq-hosted Large Language Model to generate grounded, context-aware responses.
 
 Unlike traditional RAG demos, Retrievium implements JWT-based authentication and per-user document ownership enforcement, ensuring that users can only retrieve information from documents they have personally uploaded.
 
@@ -24,10 +24,10 @@ FastAPI Backend
  ├── JWT Authentication
  ├── PDF Processing
  ├── Chunking Pipeline
- ├── Embedding Generation
+ ├── Sentence Transformer Embeddings
  ├── Hybrid Retrieval
  ├── Reranking
- └── Response Generation
+ └── Groq Streaming Response Generation
  │
  ▼
 PostgreSQL + pgvector (Supabase)
@@ -50,16 +50,17 @@ PostgreSQL + pgvector (Supabase)
 - PDF Upload Support
 - Automated Text Extraction
 - Recursive Document Chunking
+- Upload Validation and Clear Error Responses
 - Metadata Preservation
 - Scalable Ingestion Pipeline
 
 ### Retrieval Pipeline
 
-- OpenAI Embedding Generation
+- Sentence Transformer Embedding Generation
 - pgvector Semantic Search
 - Hybrid Retrieval (Vector + Lexical)
 - Retrieval Reranking
-- Context-Aware Response Generation
+- Groq-Powered Streaming Response Generation
 
 ### Multi-Tenant Isolation
 
@@ -95,7 +96,15 @@ This guarantees strict user-level document isolation and prevents cross-user dat
 
 ### Semantic Search Infrastructure
 
-Embeddings are generated using OpenAI models and stored inside PostgreSQL using pgvector. Similarity search is executed directly within the database using vector distance operators for efficient semantic retrieval.
+Embeddings are generated locally with Sentence Transformers and stored inside PostgreSQL using pgvector. Similarity search is executed directly within the database using vector distance operators for efficient semantic retrieval.
+
+### Groq Response Generation
+
+Retrieved chunks are sent to Groq for streamed grounded answers. The default model is configured in `backend/app/services/generation_service.py` as `llama-3.3-70b-versatile` and can be changed with `GROQ_MODEL`.
+
+### Upload Error Handling
+
+The upload API validates PDF uploads before indexing. It rejects non-PDF files, empty PDFs, and PDFs with no extractable text, and returns clear error messages to the frontend. Database and processing failures are rolled back and reported with explicit upload/indexing errors.
 
 ---
 
@@ -120,8 +129,8 @@ Embeddings are generated using OpenAI models and stored inside PostgreSQL using 
 
 ### AI & Retrieval
 
-- OpenAI Embeddings
 - Sentence Transformers
+- Groq
 - Hybrid Search
 - Semantic Retrieval
 - Retrieval Reranking
@@ -138,9 +147,10 @@ Embeddings are generated using OpenAI models and stored inside PostgreSQL using 
 ## System Capabilities
 
 - PDF Document Ingestion
-- OpenAI Embedding Generation
+- Sentence Transformer Embedding Generation
 - pgvector Similarity Search
 - Hybrid Semantic-Lexical Retrieval
+- Groq Streaming Answer Generation
 - JWT-Protected APIs
 - Per-User Document Isolation
 - Retrieval Reranking Pipeline
@@ -170,7 +180,8 @@ pip install -r requirements.txt
 Create `backend/app/.env` and configure:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
 DATABASE_URL=your_database_url
 JWT_SECRET=your_jwt_secret
 ```
@@ -233,14 +244,14 @@ http://127.0.0.1:3000
 
 1. User creates an account
 2. User logs in via JWT authentication
-3. PDF documents are uploaded
+3. PDF documents are uploaded and validated
 4. Text is extracted and chunked
-5. OpenAI embeddings are generated
+5. Sentence Transformer embeddings are generated
 6. Chunks are stored in PostgreSQL + pgvector
 7. User submits a natural language query
 8. Hybrid retrieval identifies relevant context
-9. Retrieved context is supplied to the LLM
-10. Grounded response is generated
+9. Retrieved context is supplied to Groq
+10. A grounded response is streamed back to the user
 
 ---
 
@@ -252,7 +263,9 @@ http://127.0.0.1:3000
 - Per-User Document Ownership Enforcement
 - End-to-End RAG Pipeline Orchestration
 - Semantic Search Infrastructure
+- Groq-Based Streaming Generation
 - Production-Oriented API Design
+- Explicit Upload Validation and Failure Reporting
 - Scalable Document Processing Workflow
 
 ---
@@ -274,4 +287,4 @@ http://127.0.0.1:3000
 
 **Neha Damani**
 
-Production-grade Retrieval-Augmented Generation (RAG) platform featuring OpenAI embedding generation, pgvector similarity search, hybrid semantic-lexical retrieval, JWT authentication, ownership-aware access control, document chunking pipelines, retrieval reranking, FastAPI backend services, Next.js frontend architecture, and PostgreSQL-backed vector retrieval infrastructure.
+Production-grade Retrieval-Augmented Generation (RAG) platform featuring Sentence Transformer embedding generation, Groq-powered streamed answers, pgvector similarity search, hybrid semantic-lexical retrieval, JWT authentication, ownership-aware access control, document chunking pipelines, retrieval reranking, FastAPI backend services, Next.js frontend architecture, and PostgreSQL-backed vector retrieval infrastructure.
