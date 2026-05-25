@@ -5,6 +5,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Mail, ShieldCheck, UserRound, LockKeyhole } from "lucide-react";
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
 export default function SignupPage() {
   const router = useRouter();
 
@@ -21,7 +24,7 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/signup", {
+      const response = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

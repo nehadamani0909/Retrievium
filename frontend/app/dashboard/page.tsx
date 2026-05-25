@@ -45,6 +45,9 @@ interface CustomTooltipProps {
   label?: number | string;
 }
 
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
 // Custom tooltip renderer to match the premium glassmorphism theme
 const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
@@ -82,7 +85,7 @@ export default function DashboardPage() {
   }, [router]);
 
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/metrics")
+    fetch(`${API_URL}/metrics`)
       .then((res) => res.json())
       .then((data) => setMetrics(data))
       .catch((err) => console.error(err));
