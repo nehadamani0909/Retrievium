@@ -1,7 +1,8 @@
-from app.db.database import cur
+from app.db.database import get_cursor
 from app.services.embedding_service import (
     generate_embedding
 )
+
 
 def search_chunks(
     query: str,
@@ -10,34 +11,35 @@ def search_chunks(
 
     query_embedding = generate_embedding(query)
 
-    if owner_id:
+    with get_cursor() as cur:
+        if owner_id:
 
-        cur.execute("""
-            SELECT
-                chunk_text,
-                page_number
-            FROM chunks
-            WHERE owner_id = %s
-            ORDER BY embedding <=> %s::vector
-            LIMIT 5
-        """, (
-            owner_id,
-            query_embedding
-        ))
+            cur.execute("""
+                SELECT
+                    chunk_text,
+                    page_number
+                FROM chunks
+                WHERE owner_id = %s
+                ORDER BY embedding <=> %s::vector
+                LIMIT 5
+            """, (
+                owner_id,
+                query_embedding
+            ))
 
-    else:
+        else:
 
-        cur.execute("""
-            SELECT
-                chunk_text,
-                page_number
-            FROM chunks
-            ORDER BY embedding <=> %s::vector
-            LIMIT 5
-        """, (
-            query_embedding,
-        ))
+            cur.execute("""
+                SELECT
+                    chunk_text,
+                    page_number
+                FROM chunks
+                ORDER BY embedding <=> %s::vector
+                LIMIT 5
+            """, (
+                query_embedding,
+            ))
 
-    results = cur.fetchall()
+        results = cur.fetchall()
 
     return results

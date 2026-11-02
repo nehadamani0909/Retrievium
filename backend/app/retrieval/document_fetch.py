@@ -1,4 +1,4 @@
-from app.db.database import cur
+from app.db.database import get_cursor
 
 
 SUMMARY_TERMS = (
@@ -26,25 +26,26 @@ def fetch_document_chunks(
     document_id: str,
     owner_id: str
 ):
-    cur.execute(
-        """
-        SELECT
-            chunk_text,
-            page_number,
-            filename,
-            document_id
-        FROM chunks
-        WHERE document_id = %s
-        AND owner_id = %s
-        ORDER BY page_number
-        """,
-        (
-            document_id,
-            owner_id
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                chunk_text,
+                page_number,
+                filename,
+                document_id
+            FROM chunks
+            WHERE document_id = %s
+            AND owner_id = %s
+            ORDER BY page_number
+            """,
+            (
+                document_id,
+                owner_id
+            )
         )
-    )
 
-    rows = cur.fetchall()
+        rows = cur.fetchall()
 
     return [
         {

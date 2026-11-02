@@ -7,7 +7,7 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 import os
 
-from app.db.database import cur
+from app.db.database import get_cursor
 
 
 SECRET_KEY = os.environ["JWT_SECRET"]
@@ -82,21 +82,22 @@ def verify_token(token: str):
 
 def get_user_by_email(email: str):
 
-    cur.execute(
-        """
-        SELECT
-            id,
-            name,
-            email
-        FROM users
-        WHERE email = %s
-        """,
-        (
-            email,
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                id,
+                name,
+                email
+            FROM users
+            WHERE email = %s
+            """,
+            (
+                email,
+            )
         )
-    )
 
-    return cur.fetchone()
+        return cur.fetchone()
 
 
 def get_current_user(

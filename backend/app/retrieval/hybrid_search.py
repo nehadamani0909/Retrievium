@@ -2,7 +2,7 @@ import time
 
 from rank_bm25 import BM25Okapi
 
-from app.db.database import cur
+from app.db.database import get_cursor
 from app.services.embedding_service import (
     generate_embedding
 )
@@ -48,95 +48,96 @@ def hybrid_search(
     print("Starting vector search", flush=True)
     stage_start = time.time()
 
-    if owner_id:
+    with get_cursor() as cur:
+        if owner_id:
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                document_id,
-                chunk_text,
-                page_number,
-                filename,
-                1 - (embedding <=> %s::vector)
-                AS vector_score
-            FROM chunks
-            WHERE owner_id = %s
-            ORDER BY embedding <=> %s::vector
-            LIMIT 10
-            """,
-            (
-                embedding_string,
-                owner_id,
-                embedding_string
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    chunk_text,
+                    page_number,
+                    filename,
+                    1 - (embedding <=> %s::vector)
+                    AS vector_score
+                FROM chunks
+                WHERE owner_id = %s
+                ORDER BY embedding <=> %s::vector
+                LIMIT 10
+                """,
+                (
+                    embedding_string,
+                    owner_id,
+                    embedding_string
+                )
             )
-        )
 
-    else:
+        else:
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                document_id,
-                chunk_text,
-                page_number,
-                filename,
-                1 - (embedding <=> %s::vector)
-                AS vector_score
-            FROM chunks
-            ORDER BY embedding <=> %s::vector
-            LIMIT 10
-            """,
-            (
-                embedding_string,
-                embedding_string
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    chunk_text,
+                    page_number,
+                    filename,
+                    1 - (embedding <=> %s::vector)
+                    AS vector_score
+                FROM chunks
+                ORDER BY embedding <=> %s::vector
+                LIMIT 10
+                """,
+                (
+                    embedding_string,
+                    embedding_string
+                )
             )
-        )
 
-    vector_results = cur.fetchall()
+        vector_results = cur.fetchall()
 
-    log_timing("Vector search", stage_start)
-    print("Starting BM25", flush=True)
-    stage_start = time.time()
+        log_timing("Vector search", stage_start)
+        print("Starting BM25", flush=True)
+        stage_start = time.time()
 
-    # =========================
-    # BM25 SEARCH
-    # =========================
+        # =========================
+        # BM25 SEARCH
+        # =========================
 
-    if owner_id:
+        if owner_id:
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                document_id,
-                chunk_text,
-                page_number,
-                filename
-            FROM chunks
-            WHERE owner_id = %s
-            """,
-            (
-                owner_id,
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    chunk_text,
+                    page_number,
+                    filename
+                FROM chunks
+                WHERE owner_id = %s
+                """,
+                (
+                    owner_id,
+                )
             )
-        )
 
-    else:
+        else:
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                document_id,
-                chunk_text,
-                page_number,
-                filename
-            FROM chunks
-            """
-        )
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    document_id,
+                    chunk_text,
+                    page_number,
+                    filename
+                FROM chunks
+                """
+            )
 
-    all_chunks = cur.fetchall()
+        all_chunks = cur.fetchall()
 
     print(
         f"BM25 fetched {len(all_chunks)} chunks",

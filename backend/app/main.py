@@ -10,7 +10,7 @@ from app.auth import (
     create_access_token,
     get_current_user
 )
-from app.db.database import conn, cur
+from app.db.database import get_cursor
 from app.schemas.user import UserSignup, UserLogin
 
 import json
@@ -208,29 +208,27 @@ async def signup(user: UserSignup):
 
     try:
 
-        cur.execute(
-            """
-            INSERT INTO users (
-                name,
-                email,
-                password_hash
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (
+                    name,
+                    email,
+                    password_hash
+                )
+                VALUES (%s, %s, %s)
+                RETURNING id, name, email, created_at
+                """,
+                (
+                    user.name,
+                    user.email,
+                    hashed_password
+                )
             )
-            VALUES (%s, %s, %s)
-            RETURNING id, name, email, created_at
-            """,
-            (
-                user.name,
-                user.email,
-                hashed_password
-            )
-        )
 
-        created_user = cur.fetchone()
-        conn.commit()
+            created_user = cur.fetchone()
 
     except psycopg2.errors.UniqueViolation:
-
-        conn.rollback()
 
         raise HTTPException(
             status_code=409,
@@ -238,8 +236,6 @@ async def signup(user: UserSignup):
         )
 
     except psycopg2.Error:
-
-        conn.rollback()
 
         raise HTTPException(
             status_code=500,
@@ -262,27 +258,26 @@ async def login(user: UserLogin):
 
     try:
 
-        cur.execute(
-            """
-            SELECT
-                id,
-                name,
-                email,
-                password_hash,
-                created_at
-            FROM users
-            WHERE email = %s
-            """,
-            (
-                user.email,
+        with get_cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    name,
+                    email,
+                    password_hash,
+                    created_at
+                FROM users
+                WHERE email = %s
+                """,
+                (
+                    user.email,
+                )
             )
-        )
 
-        existing_user = cur.fetchone()
+            existing_user = cur.fetchone()
 
     except psycopg2.Error:
-
-        conn.rollback()
 
         raise HTTPException(
             status_code=500,
@@ -384,13 +379,9 @@ async def upload_file(
 
     except HTTPException:
 
-        conn.rollback()
-
         raise
 
     except psycopg2.Error as exc:
-
-        conn.rollback()
 
         print(
             f"Upload database error: {exc}",
@@ -403,8 +394,6 @@ async def upload_file(
         ) from exc
 
     except Exception as exc:
-
-        conn.rollback()
 
         print(
             f"Upload processing error: {exc}",
